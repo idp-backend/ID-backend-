@@ -1,0 +1,13 @@
+{
+  "name": "telegram-firebase-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for Firebase prepaid confirmation",
+  "main": "api/bot.js",
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.0",
+    "node-telegram-bot-api": "^0.63.0"
+  }
+}
