@@ -34,47 +34,54 @@ module.exports = async (req, res) => {
     try {
       const update = req.body;
 
-      // 1. जब वेबसाइट से नोटिफिकेशन का सिग्नल (docId के साथ) आए
       if (update.action === 'send_notification') {
-        const docId = update.docId;
-        
-        if (!docId) {
-          return res.status(400).json({ success: false, message: 'DocID is missing' });
+        let docId = update.docId || update.id;
+        let phone = update.phone;
+        let utr = update.utr;
+        let operator = update.operator || update.operatorName;
+        let planAmount = update.amount || update.planAmount;
+        let finalPaid = update.finalPayable || update.finalAmount || update.amount;
+
+        // अगर वेबसाइट से सीधा डेटा नहीं आया है और सिर्फ docId है, तो फायरबेस से डेटा लाओ
+        if (docId && (!phone || !operator || !planAmount)) {
+          try {
+            const docRef = db.collection('recharges').doc(docId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+              const fbData = docSnap.data();
+              phone = phone || fbData.phone;
+              utr = utr || fbData.utr;
+              operator = operator || fbData.operator;
+              planAmount = planAmount || fbData.amount;
+              finalPaid = finalPaid || fbData.finalPayable || fbData.amount;
+              docId = fbData.prepaidId || docId;
+            }
+          } catch (err) {
+            console.error('Error fetching from firebase:', err);
+          }
         }
 
-        // 🚀 सीधे फायरबेस डेटाबेस से इस ID का पूरा डॉक्यूमेन्ट फेच करो!
-        const docRef = db.collection('recharges').doc(docId);
-        const docSnap = await docRef.get();
-
-        if (!docSnap.exists) {
-          return res.status(404).json({ success: false, message: 'Document not found in Firebase' });
-        }
-
-        const data = docSnap.data();
-        
-        // अब डेटा सीधा फायरबेस से आ रहा है, इसलिए 100% सही फील्ड्स मिलेंगे
-        const phone = data.phone || 'N/A';
-        const utr = data.utr || 'N/A';
-        const operator = data.operator ? data.operator.toUpperCase() : 'N/A';
-        
-        // प्लान अमाउंट (जो यूजर ने प्लान चुना, जैसे 199) और फाइनल पेबल (डिस्काउंट के बाद वाला)
-        const planAmount = data.amount || 'N/A';
-        const finalPaid = data.finalPayable || data.finalAmount || data.amount || 'N/A';
+        const opName = operator ? String(operator).toUpperCase() : 'N/A';
+        const pAmount = planAmount !== undefined && planAmount !== null ? planAmount : 'N/A';
+        const fPaid = finalPaid !== undefined && finalPaid !== null ? finalPaid : pAmount;
+        const finalDocId = docId || 'N/A';
+        const finalPhone = phone || 'N/A';
+        const finalUtr = utr || 'N/A';
 
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
-                          `🆔 *ID:* \`${docId}\`\n` +
-                          `📱 *Phone:* \`${phone}\`\n` +
-                          `🌐 *Operator:* \`${operator}\`\n` +
-                          `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
-                          `💰 *Final Paid:* ₹\`{finalPaid}\`\n` +
-                          `📝 *UTR:* \`${utr}\``;
+                          `🆔 *ID:* \`${finalDocId}\`\n` +
+                          `📱 *Phone:* \`${finalPhone}\`\n` +
+                          `🌐 *Operator:* \`${opName}\`\n` +
+                          `📋 *Plan Amount:* ₹\`${pAmount}\`\n` +
+                          `💰 *Final Paid:* ₹\`${fPaid}\`\n` +
+                          `📝 *UTR:* \`${finalUtr}\``;
 
         const inlineKeyboard = {
           reply_markup: {
             inline_keyboard: [
               [
-                { text: '✅ Verify Payment', callback_data: `verify_${docId}` },
-                { text: '🚀 Recharge Done', callback_data: `recharge_${docId}` }
+                { text: '✅ Verify Payment', callback_data: `verify_${finalDocId}` },
+                { text: '🚀 Recharge Done', callback_data: `recharge_${finalDocId}` }
               ]
             ]
           }
@@ -85,10 +92,10 @@ module.exports = async (req, res) => {
           ...inlineKeyboard
         });
 
-        return res.status(200).json({ success: true, message: 'Notification sent from Firebase data!' });
+        return res.status(200).json({ success: true, message: 'Notification sent successfully!' });
       }
 
-      // 2. टेलीग्राम बटन पर क्लिक होने पर (Callback Query)
+      // टेलीग्राम बटन क्लिक (Callback Query) हैंडल करने के लिए
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
@@ -96,8 +103,8 @@ module.exports = async (req, res) => {
         const messageId = query.message.message_id;
 
         const parts = data.split('_');
-        const action = parts[0]; // 'verify' या 'recharge'
-        const docId = parts.slice(1).join('_'); // ID
+        const action = parts[0]; 
+        const docId = parts.slice(1).join('_');
 
         if (docId) {
           const docRef = db.collection('recharges').doc(docId); 
