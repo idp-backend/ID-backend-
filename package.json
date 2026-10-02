@@ -4,7 +4,7 @@
   "description": "Telegram bot for Firebase prepaid confirmation",
   "main": "api/bot.js",
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "dependencies": {
     "firebase-admin": "^11.11.0",
