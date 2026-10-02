@@ -19,11 +19,9 @@ const db = admin.firestore();
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(token);
 
-// तेरी कंफर्म चैट आईडी यहाँ सीधी डाल दी है ताकि कोई गलती न हो
 const ADMIN_CHAT_ID = '5449533654'; 
 
 module.exports = async (req, res) => {
-  // CORS headers ताकि वेबसाइट से रिक्वेस्ट ब्लॉक न हो
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -36,14 +34,14 @@ module.exports = async (req, res) => {
     try {
       const update = req.body;
 
-      // 1. अगर वेबसाइट से नया पेमेंट डेटा आया है
+      // 1. वेबसाइट से नया पेमेंट नोटिफिकेशन आने पर
       if (update.action === 'send_notification') {
         const { docId, amount, utr, phone } = update;
         
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${docId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
-                          `💰 *Amount:* ₹\`{amount}\`\n` +
+                          `💰 *Amount:* ₹\`${amount}\`\n` +
                           `📝 *UTR:* \`${utr}\``;
 
         const inlineKeyboard = {
@@ -62,10 +60,10 @@ module.exports = async (req, res) => {
           ...inlineKeyboard
         });
 
-        return res.status(200).json({ success: true, message: 'Notification sent to Telegram!' });
+        return res.status(200).json({ success: true, message: 'Notification sent!' });
       }
 
-      // 2. अगर टेलीग्राम से बटन क्लिक हुआ है
+      // 2. टेलीग्राम बटन पर क्लिक होने पर (Webhook callback)
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
@@ -103,6 +101,6 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
   } else {
-    return res.status(200).json({ message: 'Telegram Bot Webhook is running active!' });
+    return res.status(200).json({ message: 'Telegram Bot Webhook is active!' });
   }
 };
