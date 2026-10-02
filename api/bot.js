@@ -34,27 +34,39 @@ module.exports = async (req, res) => {
     try {
       const update = req.body;
 
-      // 1. वेबसाइट से नया पेमेंट नोटिफिकेशन आने पर
+      // 1. जब वेबसाइट से नोटिफिकेशन का सिग्नल (docId के साथ) आए
       if (update.action === 'send_notification') {
-        // यहाँ हम सभी संभावित नाम चेक कर रहे हैं ताकि कोई भी वैल्यू मिस न हो
-        const docId = update.docId || update.id;
-        const phone = update.phone || 'N/A';
-        const utr = update.utr || 'N/A';
+        const docId = update.docId;
         
-        // ऑपरेटर के लिए अलग-अलग नाम चेक कर रहे हैं
-        const rawOperator = update.operator || update.operatorName || update.op || 'N/A';
-        const opName = rawOperator !== 'N/A' ? rawOperator.toUpperCase() : 'N/A';
+        if (!docId) {
+          return res.status(400).json({ success: false, message: 'DocID is missing' });
+        }
 
-        // प्लान अमाउंट और फाइनल पेड अमाउंट की छंटनी
-        const planAmount = update.planAmount || update.amount || 'N/A';
-        const finalPaid = update.finalPayable || update.finalAmount || update.paidAmount || update.amount || 'N/A';
+        // 🚀 सीधे फायरबेस डेटाबेस से इस ID का पूरा डॉक्यूमेन्ट फेच करो!
+        const docRef = db.collection('recharges').doc(docId);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+          return res.status(404).json({ success: false, message: 'Document not found in Firebase' });
+        }
+
+        const data = docSnap.data();
+        
+        // अब डेटा सीधा फायरबेस से आ रहा है, इसलिए 100% सही फील्ड्स मिलेंगे
+        const phone = data.phone || 'N/A';
+        const utr = data.utr || 'N/A';
+        const operator = data.operator ? data.operator.toUpperCase() : 'N/A';
+        
+        // प्लान अमाउंट (जो यूजर ने प्लान चुना, जैसे 199) और फाइनल पेबल (डिस्काउंट के बाद वाला)
+        const planAmount = data.amount || 'N/A';
+        const finalPaid = data.finalPayable || data.finalAmount || data.amount || 'N/A';
 
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${docId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
-                          `🌐 *Operator:* \`${opName}\`\n` +
+                          `🌐 *Operator:* \`${operator}\`\n` +
                           `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
-                          `💰 *Final Paid:* ₹\`${finalPaid}\`\n` +
+                          `💰 *Final Paid:* ₹\`{finalPaid}\`\n` +
                           `📝 *UTR:* \`${utr}\``;
 
         const inlineKeyboard = {
@@ -73,7 +85,7 @@ module.exports = async (req, res) => {
           ...inlineKeyboard
         });
 
-        return res.status(200).json({ success: true, message: 'Notification sent!' });
+        return res.status(200).json({ success: true, message: 'Notification sent from Firebase data!' });
       }
 
       // 2. टेलीग्राम बटन पर क्लिक होने पर (Callback Query)
