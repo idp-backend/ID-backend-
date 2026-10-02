@@ -36,19 +36,25 @@ module.exports = async (req, res) => {
 
       // 1. वेबसाइट से नया पेमेंट नोटिफिकेशन आने पर
       if (update.action === 'send_notification') {
-        const { docId, amount, finalPayable, utr, phone, operator } = update;
+        // यहाँ हम सभी संभावित नाम चेक कर रहे हैं ताकि कोई भी वैल्यू मिस न हो
+        const docId = update.docId || update.id;
+        const phone = update.phone || 'N/A';
+        const utr = update.utr || 'N/A';
         
-        // यहाँ सीधे सही वैल्यूज मैप कर दी हैं ताकि ऑपरेटर और दोनों अमाउंट एकदम सही दिखें
-        const planAmount = amount || 'N/A';
-        const paidAmount = finalPayable || amount || 'N/A';
-        const opName = operator ? operator.toUpperCase() : 'N/A';
+        // ऑपरेटर के लिए अलग-अलग नाम चेक कर रहे हैं
+        const rawOperator = update.operator || update.operatorName || update.op || 'N/A';
+        const opName = rawOperator !== 'N/A' ? rawOperator.toUpperCase() : 'N/A';
+
+        // प्लान अमाउंट और फाइनल पेड अमाउंट की छंटनी
+        const planAmount = update.planAmount || update.amount || 'N/A';
+        const finalPaid = update.finalPayable || update.finalAmount || update.paidAmount || update.amount || 'N/A';
 
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${docId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
                           `🌐 *Operator:* \`${opName}\`\n` +
                           `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
-                          `💰 *Final Paid:* ₹\`${paidAmount}\`\n` +
+                          `💰 *Final Paid:* ₹\`${finalPaid}\`\n` +
                           `📝 *UTR:* \`${utr}\``;
 
         const inlineKeyboard = {
