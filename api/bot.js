@@ -38,12 +38,17 @@ module.exports = async (req, res) => {
       if (update.action === 'send_notification') {
         const { docId, amount, finalPayable, utr, phone, operator } = update;
         
+        // यहाँ सीधे सही वैल्यूज मैप कर दी हैं ताकि ऑपरेटर और दोनों अमाउंट एकदम सही दिखें
+        const planAmount = amount || 'N/A';
+        const paidAmount = finalPayable || amount || 'N/A';
+        const opName = operator ? operator.toUpperCase() : 'N/A';
+
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${docId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
-                          `🌐 *Operator:* \`${operator ? operator.toUpperCase() : 'N/A'}\`\n` +
-                          `📋 *Plan Amount:* ₹\`${amount}\`\n` +
-                          `💰 *Final Paid:* ₹\`{finalPayable || amount}\`\n` +
+                          `🌐 *Operator:* \`${opName}\`\n` +
+                          `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
+                          `💰 *Final Paid:* ₹\`${paidAmount}\`\n` +
                           `📝 *UTR:* \`${utr}\``;
 
         const inlineKeyboard = {
