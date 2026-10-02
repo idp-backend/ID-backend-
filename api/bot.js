@@ -30,6 +30,7 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Telegram हमेशा POST request भेजता है
   if (req.method === 'POST') {
     try {
       const update = req.body;
@@ -63,14 +64,16 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, message: 'Notification sent!' });
       }
 
-      // 2. टेलीग्राम बटन पर क्लिक होने पर (Webhook callback)
+      // 2. टेलीग्राम बटन पर क्लिक होने पर (Callback Query)
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
         const chatId = query.message.chat.id;
         const messageId = query.message.message_id;
 
-        const [action, docId] = data.split('_');
+        const parts = data.split('_');
+        const action = parts[0]; // 'verify' या 'recharge'
+        const docId = parts.slice(1).join('_'); // ID (जैसे IDPXPBV9U)
 
         if (docId) {
           const docRef = db.collection('recharges').doc(docId); 
@@ -93,12 +96,15 @@ module.exports = async (req, res) => {
             });
           }
         }
+
+        return res.status(200).json({ status: 'success' });
       }
 
       return res.status(200).json({ status: 'ok' });
     } catch (error) {
       console.error('Error handling update:', error);
-      return res.status(500).json({ error: error.message });
+      // त्रुटि होने पर भी टेलीग्राम को 200 देना जरूरी है ताकि बटन गोल-गोल न घूमे
+      return res.status(200).json({ error: error.message });
     }
   } else {
     return res.status(200).json({ message: 'Telegram Bot Webhook is active!' });
