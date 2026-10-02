@@ -30,19 +30,20 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Telegram हमेशा POST request भेजता है
   if (req.method === 'POST') {
     try {
       const update = req.body;
 
       // 1. वेबसाइट से नया पेमेंट नोटिफिकेशन आने पर
       if (update.action === 'send_notification') {
-        const { docId, amount, utr, phone } = update;
+        const { docId, amount, finalPayable, utr, phone, operator } = update;
         
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${docId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
-                          `💰 *Amount:* ₹\`${amount}\`\n` +
+                          `🌐 *Operator:* \`${operator ? operator.toUpperCase() : 'N/A'}\`\n` +
+                          `📋 *Plan Amount:* ₹\`${amount}\`\n` +
+                          `💰 *Final Paid:* ₹\`{finalPayable || amount}\`\n` +
                           `📝 *UTR:* \`${utr}\``;
 
         const inlineKeyboard = {
@@ -73,7 +74,7 @@ module.exports = async (req, res) => {
 
         const parts = data.split('_');
         const action = parts[0]; // 'verify' या 'recharge'
-        const docId = parts.slice(1).join('_'); // ID (जैसे IDPXPBV9U)
+        const docId = parts.slice(1).join('_'); // ID
 
         if (docId) {
           const docRef = db.collection('recharges').doc(docId); 
@@ -103,7 +104,6 @@ module.exports = async (req, res) => {
       return res.status(200).json({ status: 'ok' });
     } catch (error) {
       console.error('Error handling update:', error);
-      // त्रुटि होने पर भी टेलीग्राम को 200 देना जरूरी है ताकि बटन गोल-गोल न घूमे
       return res.status(200).json({ error: error.message });
     }
   } else {
