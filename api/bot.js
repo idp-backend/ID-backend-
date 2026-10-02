@@ -1,7 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const admin = require('firebase-admin');
 
-// Firebase Admin SDK को Vercel Environment Variables से इनिशियलाइज करना
 if (!admin.apps.length) {
   try {
     admin.initializeApp({
@@ -20,16 +19,24 @@ const db = admin.firestore();
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(token);
 
-// तेरी पर्सनल टेलीग्राम चैट आईडी (यहाँ अपनी चैट आईडी डाल देना ताकि बॉट तुझे ही मैसेज भेजे)
-const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || 'तेरी_चैट_आईडी'; 
+// तेरी कंफर्म चैट आईडी यहाँ सीधी डाल दी है ताकि कोई गलती न हो
+const ADMIN_CHAT_ID = '5449533654'; 
 
-// Vercel Serverless Function Handler
 module.exports = async (req, res) => {
+  // CORS headers ताकि वेबसाइट से रिक्वेस्ट ब्लॉक न हो
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method === 'POST') {
     try {
       const update = req.body;
 
-      // 1. अगर वेबसाइट से नया पेमेंट डेटा भेजा गया है (टेलीग्राम पर नोटिफिकेशन भेजने के लिए)
+      // 1. अगर वेबसाइट से नया पेमेंट डेटा आया है
       if (update.action === 'send_notification') {
         const { docId, amount, utr, phone } = update;
         
@@ -58,7 +65,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, message: 'Notification sent to Telegram!' });
       }
 
-      // 2. अगर टेलीग्राम से कोई बटन क्लिक (Callback Query) आया है
+      // 2. अगर टेलीग्राम से बटन क्लिक हुआ है
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
