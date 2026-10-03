@@ -68,7 +68,8 @@ module.exports = async (req, res) => {
                           `🌐 *Operator:* \`${operator}\`\n` +
                           `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
                           `💰 *Final Paid:* ₹\`${finalPaid}\`\n` +
-                          `📝 *UTR:* \`${utr}\``;
+                          `📝 *UTR:* \`${utr}\`\n` +
+                          `⚡ *Status:* Pending Verification`;
 
         const inlineKeyboard = {
           reply_markup: {
@@ -89,7 +90,6 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, message: 'Notification sent successfully!' });
       }
 
-      // Telegram button clicks
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
@@ -102,25 +102,65 @@ module.exports = async (req, res) => {
 
         if (docId) {
           const docRef = db.collection('recharges').doc(docId); 
-          
-          if (action === 'verify') {
-            // Yahan paymentStatus update hoga
-            await docRef.update({ paymentStatus: 'Payment Verified' });
-            await bot.answerCallbackQuery(query.id, { text: 'Payment Verified Successfully!' });
-            await bot.editMessageText(`✅ *Payment Verified* for ID: \`${docId}\``, {
-              chat_id: chatId,
-              message_id: messageId,
-              parse_mode: 'Markdown'
-            });
-          } else if (action === 'recharge') {
-            // Yahan rechargeStatus update hoga
-            await docRef.update({ rechargeStatus: 'Recharge Successful' });
-            await bot.answerCallbackQuery(query.id, { text: 'Recharge marked as Done!' });
-            await bot.editMessageText(`🚀 *Recharge Done* for ID: \`${docId}\``, {
-              chat_id: chatId,
-              message_id: messageId,
-              parse_mode: 'Markdown'
-            });
+          const docSnap = await docRef.get();
+
+          if (docSnap.exists) {
+            const item = docSnap.data();
+            const prepaidId = item.prepaidId || docId;
+            const phone = item.phone || 'N/A';
+            const operator = item.operator ? item.operator.toUpperCase() : 'N/A';
+            const planAmount = item.amount || 'N/A';       
+            const finalPaid = item.finalPayable || item.amount || 'N/A'; 
+            const utr = item.utr || 'N/A';
+
+            if (action === 'verify') {
+              await docRef.update({ paymentStatus: 'Payment Verified' });
+              await bot.answerCallbackQuery(query.id, { text: 'Payment Verified Successfully!' });
+              
+              // Update message keeping details intact, showing only Recharge Done button
+              const updatedText = `🔔 *Prepaid Payment Received!*\n\n` +
+                                `🆔 *ID:* \`${prepaidId}\`\n` +
+                                `📱 *Phone:* \`${phone}\`\n` +
+                                `🌐 *Operator:* \`${operator}\`\n` +
+                                `📋 *Plan Amount:* ₹\`${planAmount}\`\n` +
+                                `💰 *Final Paid:* ₹\`${finalPaid}\`\n` +
+                                `📝 *UTR:* \`${utr}\`\n` +
+                                `✅ *Status:* Payment Verified (Recharge Pending)`;
+
+              const nextKeyboard = {
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '🚀 Recharge Done', callback_data: `recharge_${docId}` }]
+                  ]
+                }
+              };
+
+              await bot.editMessageText(updatedText, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: 'Markdown',
+                ...nextKeyboard
+              });
+
+            } else if (action === 'recharge') {
+              await docRef.update({ rechargeStatus: 'Recharge Successful' });
+              await bot.answerCallbackQuery(query.id, { text: 'Recharge marked as Done!' });
+              
+              // Final success state on telegram, removing buttons
+              const finalMsgText = `🎉 *Recharge Completed Successfully!*\n\n` +
+                                 `🆔 *ID:* \`${prepaidId}\`\n` +
+                                 `📱 *Phone:* \`${phone}\`\n` +
+                                 `🌐 *Operator:* \`${operator}\`\n` +
+                                 `💰 *Final Paid:* ₹\`${finalPaid}\`\n` +
+                                 `📝 *UTR:* \`${utr}\`\n` +
+                                 `🚀 *Status:* Recharge Done & Successful`;
+
+              await bot.editMessageText(finalMsgText, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: 'Markdown'
+              });
+            }
           }
         }
 
@@ -130,7 +170,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({ status: 'ok' });
     } catch (error) {
       console.error('Error:', error);
-      return res.status(200).json({ error: error.message });
+      return res.status(200).json({ status: 'error', message: error.message });
     }
   } else {
     return res.status(200).json({ message: 'Telegram Bot Webhook is active!' });
