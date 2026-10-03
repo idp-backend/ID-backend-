@@ -40,13 +40,12 @@ module.exports = async (req, res) => {
       const update = req.body;
 
       if (update.action === 'send_notification') {
-        const docId = update.docId; // Yeh ab seedha prepaidId hai (jaise IDPFEXGCL)
+        const docId = update.docId; 
         
         if (!docId) {
           return res.status(400).json({ success: false, message: 'Doc ID missing' });
         }
 
-        // Seedha Firebase se data fetch karo
         const docRef = db.collection('recharges').doc(docId);
         const docSnap = await docRef.get();
 
@@ -90,7 +89,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ success: true, message: 'Notification sent successfully!' });
       }
 
-      // Telegram button clicks (Verify / Recharge Done)
+      // Telegram button clicks
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
@@ -105,7 +104,8 @@ module.exports = async (req, res) => {
           const docRef = db.collection('recharges').doc(docId); 
           
           if (action === 'verify') {
-            await docRef.update({ status: 'Verification successful' });
+            // Yahan paymentStatus update hoga
+            await docRef.update({ paymentStatus: 'Payment Verified' });
             await bot.answerCallbackQuery(query.id, { text: 'Payment Verified Successfully!' });
             await bot.editMessageText(`✅ *Payment Verified* for ID: \`${docId}\``, {
               chat_id: chatId,
@@ -113,7 +113,8 @@ module.exports = async (req, res) => {
               parse_mode: 'Markdown'
             });
           } else if (action === 'recharge') {
-            await docRef.update({ status: 'Recharge Successful' });
+            // Yahan rechargeStatus update hoga
+            await docRef.update({ rechargeStatus: 'Recharge Successful' });
             await bot.answerCallbackQuery(query.id, { text: 'Recharge marked as Done!' });
             await bot.editMessageText(`🚀 *Recharge Done* for ID: \`${docId}\``, {
               chat_id: chatId,
