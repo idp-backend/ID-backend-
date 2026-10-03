@@ -38,30 +38,25 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     try {
       const update = req.body;
-      console.log("Received Webhook Body:", JSON.stringify(update));
 
       if (update.action === 'send_notification') {
-        const firestoreDocId = update.docId; // yahan docRef.id aa raha hai
+        const docId = update.docId; // Yeh ab seedha prepaidId hai (jaise IDPFEXGCL)
         
-        if (!firestoreDocId) {
-          return res.status(400).json({ success: false, message: 'Doc ID missing from frontend' });
+        if (!docId) {
+          return res.status(400).json({ success: false, message: 'Doc ID missing' });
         }
 
-        console.log("Fetching from Firestore for docId:", firestoreDocId);
-
-        // Firebase se document fetch karo
-        const docRef = db.collection('recharges').doc(firestoreDocId);
+        // Seedha Firebase se data fetch karo
+        const docRef = db.collection('recharges').doc(docId);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-          console.error("Document not found in Firebase for ID:", firestoreDocId);
           return res.status(404).json({ success: false, message: 'Document not found in Firebase' });
         }
 
         const data = docSnap.data();
-        console.log("Data fetched from Firebase successfully:", data);
         
-        const prepaidId = data.prepaidId || 'N/A';
+        const prepaidId = data.prepaidId || docId;
         const phone = data.phone || 'N/A';
         const operator = data.operator ? data.operator.toUpperCase() : 'N/A';
         const planAmount = data.amount || 'N/A';       
@@ -69,15 +64,6 @@ module.exports = async (req, res) => {
         const utr = data.utr || 'N/A';
 
         const messageText = `🔔 *New Prepaid Payment Received!*\n\n` +
-                          `🆔 *ID:* \`${prepaidId}\`\n` +
-                          `📱 *Phone:* \`${phone}\`\n` +
-                          `🌐 *Operator:* \`${operator}\`\n` +
-                          `📋 *Plan Amount:* ₹\`{planAmount}\`\n` +
-                          `💰 *Final Paid:* ₹\`{finalPaid}\`\n` +
-                          `📝 *UTR:* \`${utr}\``;
-
-        // Note: Template literal fix for amounts
-        const formattedMessage = `🔔 *New Prepaid Payment Received!*\n\n` +
                           `🆔 *ID:* \`${prepaidId}\`\n` +
                           `📱 *Phone:* \`${phone}\`\n` +
                           `🌐 *Operator:* \`${operator}\`\n` +
@@ -89,22 +75,22 @@ module.exports = async (req, res) => {
           reply_markup: {
             inline_keyboard: [
               [
-                { text: '✅ Verify Payment', callback_data: `verify_${firestoreDocId}` },
-                { text: '🚀 Recharge Done', callback_data: `recharge_${firestoreDocId}` }
+                { text: '✅ Verify Payment', callback_data: `verify_${docId}` },
+                { text: '🚀 Recharge Done', callback_data: `recharge_${docId}` }
               ]
             ]
           }
         };
 
-        await bot.sendMessage(ADMIN_CHAT_ID, formattedMessage, {
+        await bot.sendMessage(ADMIN_CHAT_ID, messageText, {
           parse_mode: 'Markdown',
           ...inlineKeyboard
         });
 
-        return res.status(200).json({ success: true, message: 'Notification sent successfully from Firebase data!' });
+        return res.status(200).json({ success: true, message: 'Notification sent successfully!' });
       }
 
-      // Telegram button clicks
+      // Telegram button clicks (Verify / Recharge Done)
       if (update.callback_query) {
         const query = update.callback_query;
         const data = query.data; 
@@ -121,7 +107,7 @@ module.exports = async (req, res) => {
           if (action === 'verify') {
             await docRef.update({ status: 'Verification successful' });
             await bot.answerCallbackQuery(query.id, { text: 'Payment Verified Successfully!' });
-            await bot.editMessageText(`✅ *Payment Verified*`, {
+            await bot.editMessageText(`✅ *Payment Verified* for ID: \`${docId}\``, {
               chat_id: chatId,
               message_id: messageId,
               parse_mode: 'Markdown'
@@ -129,7 +115,7 @@ module.exports = async (req, res) => {
           } else if (action === 'recharge') {
             await docRef.update({ status: 'Recharge Successful' });
             await bot.answerCallbackQuery(query.id, { text: 'Recharge marked as Done!' });
-            await bot.editMessageText(`🚀 *Recharge Done*`, {
+            await bot.editMessageText(`🚀 *Recharge Done* for ID: \`${docId}\``, {
               chat_id: chatId,
               message_id: messageId,
               parse_mode: 'Markdown'
@@ -142,7 +128,7 @@ module.exports = async (req, res) => {
 
       return res.status(200).json({ status: 'ok' });
     } catch (error) {
-      console.error('Critical Error in Webhook:', error);
+      console.error('Error:', error);
       return res.status(200).json({ error: error.message });
     }
   } else {
